@@ -1,0 +1,156 @@
+/* SenseiScan — styles for interactive board overlays */
+
+/* ── Outer container — inline block that stacks wrapper above controls bar ──── */
+
+.senseiscan-outer {
+  display: inline-block;
+  vertical-align: top;
+  line-height: 0;
+}
+
+/* ── Board wrapper — fixed to the image's exact footprint ───────────────────── */
+
+.senseiscan-wrapper {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  line-height: 0;
+}
+
+/* ── Original image / anchor (absolute overlay inside wrapper) ──────────────── */
+
+.senseiscan-original {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Board container (absolute overlay inside wrapper) ──────────────────────── */
+
+.senseiscan-board {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: pointer;
+  isolation: isolate;
+}
+
+/* Gray border overlay that matches the SL image border, rendered above the board */
+.senseiscan-board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid #aaaaaa;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* WGo creates a div.boardElement (display:inline-block) inside the container.
+   Force it to behave as a block so the SVG child fills the container width. */
+.senseiscan-board > div,
+.senseiscan-player-board > div {
+  display: block !important;
+  width: 100% !important;
+}
+
+/* The SVG itself: fill the available width, height from viewBox aspect ratio */
+.senseiscan-board > div > svg,
+.senseiscan-player-board > div > svg {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* ── Loading pulse while fetching the SGF ───────────────────────────────────── */
+
+.senseiscan-board.senseiscan-loading {
+  opacity: 0.6;
+  animation: senseiscan-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes senseiscan-pulse {
+  from { opacity: 0.6; }
+  to   { opacity: 0.9; }
+}
+
+/* ── Minimal SGF player layout ──────────────────────────────────────────────── */
+
+.senseiscan-player-board {
+  width: 100%;
+}
+
+/* ── Controls bar — below the wrapper, not overlaying the board ─────────────── */
+
+.senseiscan-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px 4px;
+  line-height: normal;
+  background: rgba(242, 176, 109, 0.92); /* SL board colour */
+  border: 1px solid #c49050;
+  cursor: default;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.senseiscan-ctrl-btn {
+  padding: 1px 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #333;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.senseiscan-ctrl-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ── Toggle button — center of the controls bar ─────────────────────────────── */
+
+.senseiscan-toggle {
+  padding: 1px 8px;
+  font-weight: bold;
+  border-color: #888;
+}
+
+.senseiscan-move-info {
+  font-size: 11px;
+  text-align: center;
+  color: #333;
+}
+
+/* ── Stone and markup rendering ─────────────────────────────────────────────── */
+
+/* White stone: visible black outline.
+   stroke-width 0.08 adds 0.04 units to apparent radius (outer half of stroke). */
+.senseiscan-player-board svg circle[fill="#ffffff"] {
+  stroke: #000000;
+  stroke-width: 0.05;
+}
+
+/* Black stone: invisible same-color outline matching white stone stroke-width,
+   so both stones render to the same apparent size. */
+.senseiscan-player-board svg circle[fill="#000000"] {
+  stroke: #000000;
+  stroke-width: 0.05;
+}
+
+/* Symbol markers (CR circle, SQ rect, TR polygon, MA path) all get
+   fill="rgba(0,0,0,0)" from WGo's SVGMarkupDrawHandler.updateElement.
+   The last-move indicator uses fillColor:'rgba(0,0,0,0.001)' (non-zero)
+   so it does NOT match this rule and keeps its own dark stroke.
+   Label <text> elements use fill (not stroke) so they are unaffected. */
+.senseiscan-player-board svg circle[fill="rgba(0,0,0,0)"],
+.senseiscan-player-board svg rect[fill="rgba(0,0,0,0)"],
+.senseiscan-player-board svg polygon[fill="rgba(0,0,0,0)"],
+.senseiscan-player-board svg path[fill="rgba(0,0,0,0)"] {
+  stroke: #CC0000 !important;
+}
