@@ -2,6 +2,8 @@
 
 A Chrome extension that replaces static Go diagram images on [Sensei's Library](https://senseis.xmp.net) with interactive WGo.js boards.
 
+![Demo](https://github.com/user-attachments/assets/b722389e-6a0c-4c2b-81fc-4cebad26ece5)
+
 ## Features
 
 - Replaces SL's static PNG diagrams with fully interactive boards on demand
