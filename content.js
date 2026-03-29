@@ -143,13 +143,36 @@
     boardComponent.board.config.theme.grid.starColor  = SL_THEME.grid.starColor;
     boardComponent.board.config.theme.grid.linesWidth = SL_THEME.grid.linesWidth;
     // Remove extra margin so the grid fills exactly to the image crop boundary
-    boardComponent.board.config.theme.marginSize = 0.2;
+    boardComponent.board.config.theme.marginSize = 0.1;
     // Remove WGo's decorative wood-border on the touch area overlay
     boardComponent.board.touchArea.style.border = 'none';
     // Flat stones: replace gradient glass-stone handlers with SimpleStone.
     // SimpleStone returns a plain <circle> with no gradient overlays and no shadow.
     boardComponent.board.config.theme.drawHandlers.B = new WGo.svgDrawHandlers.SimpleStone('#000000');
     boardComponent.board.config.theme.drawHandlers.W = new WGo.svgDrawHandlers.SimpleStone('#ffffff');
+    // Scale CR and SQ marker handlers so they render smaller than a stone,
+    // matching SL's diagram style.  We wrap each handler's createElement and
+    // multiply every geometric attribute by MARKER_SCALE before WGo draws them.
+    const MARKER_SCALE = 0.75;
+    ['CR', 'SQ'].forEach(type => {
+      const orig = boardComponent.board.config.theme.drawHandlers[type];
+      boardComponent.board.config.theme.drawHandlers[type] = {
+        createElement(config) {
+          const elem = orig.createElement(config);
+          Object.values(elem).forEach(el => {
+            if (el.tagName === 'circle') {
+              el.setAttribute('r', String(parseFloat(el.getAttribute('r')) * MARKER_SCALE));
+            } else if (el.tagName === 'rect') {
+              for (const attr of ['x', 'y', 'width', 'height']) {
+                el.setAttribute(attr, String(parseFloat(el.getAttribute(attr)) * MARKER_SCALE));
+              }
+            }
+          });
+          return elem;
+        },
+        updateElement: orig.updateElement.bind(orig),
+      };
+    });
     boardComponent.board.config.size  = boardSize;
     boardComponent.board.config.width = boardWidth;
     // Redraw with new theme/size, then set the cropped viewport, then fix width
@@ -201,15 +224,19 @@
 
   const upgrading = new WeakSet();
 
-  async function upgradeToPlayer(boardContainer, sgfUrl, boardSize, viewport, boardWidth) {
+  async function upgradeToPlayer(boardContainer, sgfUrl, boardSize, viewport, boardWidth, textPromise) {
     if (upgrading.has(boardContainer)) return null;
     upgrading.add(boardContainer);
     boardContainer.classList.add('senseiscan-loading');
 
     try {
-      const resp = await fetch(sgfUrl);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const sgfText = await resp.text();
+      // Use pre-fetched text if available; fall back to a fresh fetch if not.
+      let sgfText = textPromise ? await textPromise : null;
+      if (!sgfText) {
+        const resp = await fetch(sgfUrl);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        sgfText = await resp.text();
+      }
       boardContainer.classList.remove('senseiscan-loading');
       return buildMinimalPlayer(boardContainer, sgfText, boardSize, viewport, boardWidth);
     } catch (err) {
@@ -238,6 +265,11 @@
     // The img may be wrapped in the SGF <a> link — hide the whole anchor
     const originalEl = img.closest('a[href$=".sgf"]') ?? img;
     originalEl.classList.add('senseiscan-original');
+
+    // Prevent the SGF anchor from navigating — we have a dedicated download button
+    if (originalEl.tagName === 'A') {
+      originalEl.addEventListener('click', e => e.preventDefault());
+    }
 
     // ── Outer container — inline block holding wrapper + controls bar ─────────
     const outer = document.createElement('div');
@@ -282,40 +314,51 @@
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'senseiscan-ctrl-btn senseiscan-toggle';
     toggleBtn.setAttribute('aria-label', 'Toggle interactive board');
-    const nextBtn   = mkBtn('▶', 'Next move');
-    const lastBtn   = mkBtn('⏭', 'Last position');
-    const moveInfo  = document.createElement('span');
-    moveInfo.className = 'senseiscan-move-info';
+    const nextBtn  = mkBtn('▶', 'Next move');
+    const lastBtn  = mkBtn('⏭', 'Last position');
 
     const bar = document.createElement('div');
     bar.className = 'senseiscan-controls';
     bar.style.width = imgW + 'px';
-    // Layout: ⏮ ◀ [toggle] ▶ ⏭  [Move N]
-    bar.append(firstBtn, prevBtn, toggleBtn, nextBtn, lastBtn, moveInfo);
 
-    // Nav buttons start disabled until the board is activated and the player loads
+    if (sgfUrl) {
+      const dlLink = document.createElement('a');
+      dlLink.className = 'senseiscan-ctrl-btn senseiscan-download';
+      dlLink.textContent = '⬇';
+      dlLink.title = 'Download SGF';
+      dlLink.href = sgfUrl;
+      dlLink.download = sgfUrl.split('/').pop() || 'game.sgf';
+      dlLink.addEventListener('click', e => e.stopPropagation());
+      bar.append(firstBtn, prevBtn, toggleBtn, nextBtn, lastBtn, dlLink);
+    } else {
+      bar.append(firstBtn, prevBtn, toggleBtn, nextBtn, lastBtn);
+    }
+    // All navigation buttons start disabled; they enable once the player is wired.
+    // Toggle is enabled immediately if there's an SGF URL (we can't know move
+    // count without fetching; the player will disable it post-load if empty).
     firstBtn.disabled = prevBtn.disabled = nextBtn.disabled = lastBtn.disabled = true;
+    toggleBtn.disabled = !sgfUrl;
 
     let showingOriginal = false;
-    let playerRef   = null; // set once the SGF player is built
-    let updateInfoRef = null; // set in wirePlayerControls
+    let playerRef       = null;
+    let updateBtnsRef   = null;
 
     function setView(toOriginal) {
       showingOriginal = toOriginal;
       boardContainer.style.display = toOriginal ? 'none' : '';
       originalEl.style.display     = toOriginal ? ''     : 'none';
+      // Add gray border to wrapper when showing the interactive board
+      wrapper.classList.toggle('senseiscan-board-active', !toOriginal);
       toggleBtn.textContent = toOriginal ? '▷' : '⊞';
       toggleBtn.title = toOriginal ? 'Show interactive board' : 'Show original image';
       if (toOriginal) {
-        // Disable nav buttons and clear move info when returning to image view
         firstBtn.disabled = prevBtn.disabled = nextBtn.disabled = lastBtn.disabled = true;
-        moveInfo.textContent = '';
       }
       if (!toOriginal && playerRef) {
         // Reset to first position; if already at root first() fires no events,
-        // so always call updateInfo explicitly afterwards to re-enable buttons.
+        // so always call updateBtns explicitly afterwards to re-enable buttons.
         playerRef.first();
-        if (updateInfoRef) updateInfoRef();
+        if (updateBtnsRef) updateBtnsRef();
       }
     }
 
@@ -332,17 +375,15 @@
         if (labelCount > 0 && currentDepth() >= labelCount) return false;
         return true;
       }
-      function updateInfo() {
-        const depth = currentDepth();
-        moveInfo.textContent = depth === 0 ? 'Start' : `Move\u00A0${depth}`;
+      function updateBtns() {
         prevBtn.disabled  = !player.currentNode.parent;
         firstBtn.disabled = !player.currentNode.parent;
         nextBtn.disabled  = !canGoNext();
         lastBtn.disabled  = !canGoNext();
       }
-      updateInfoRef = updateInfo;
-      player.on('applyNodeChanges', updateInfo);
-      updateInfo();
+      updateBtnsRef = updateBtns;
+      player.on('applyNodeChanges', updateBtns);
+      updateBtns();
       firstBtn.onclick = () => player.first();
       prevBtn.onclick  = () => player.previous();
       nextBtn.onclick  = () => { if (canGoNext()) player.next(); };
@@ -368,6 +409,20 @@
     wrapper.appendChild(originalEl);
     setView(true); // initialise state: show original image first
 
+    // ── Pre-fetch SGF on hover ────────────────────────────────────────────────
+    // Start the network request as soon as the user moves over the diagram so
+    // the SGF is likely already cached by the time they click the toggle.
+    let prefetchPromise = null;
+    if (sgfUrl) {
+      outer.addEventListener('mouseenter', () => {
+        if (!prefetchPromise && !upgraded) {
+          prefetchPromise = fetch(sgfUrl)
+            .then(r => r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`)))
+            .catch(() => null); // null signals upgradeToPlayer to fall back to fresh fetch
+        }
+      });
+    }
+
     // ── Activate board ────────────────────────────────────────────────────────
     let upgraded = false;
 
@@ -375,7 +430,7 @@
       setView(false);
       if (sgfUrl && !upgraded) {
         upgraded = true;
-        upgradeToPlayer(boardContainer, sgfUrl, boardSize, viewport, imgW)
+        upgradeToPlayer(boardContainer, sgfUrl, boardSize, viewport, imgW, prefetchPromise)
           .then(player => {
             if (player) {
               playerRef = player;
@@ -390,14 +445,6 @@
       e.stopPropagation();
       if (showingOriginal) activateBoard(); else setView(true);
     });
-
-    if (sgfUrl) {
-      // Prefetch the SGF when the wrapper is hovered (image is visible)
-      let prefetched = false;
-      wrapper.addEventListener('mouseenter', () => {
-        if (!prefetched) { prefetched = true; fetch(sgfUrl).catch(() => {}); }
-      }, { once: true });
-    }
   }
 
   // ─── Lazy rendering via IntersectionObserver ──────────────────────────────────

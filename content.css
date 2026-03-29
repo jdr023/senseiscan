@@ -34,17 +34,13 @@
   inset: 0;
   overflow: hidden;
   cursor: pointer;
-  isolation: isolate;
 }
 
-/* Gray border overlay that matches the SL image border, rendered above the board */
-.senseiscan-board::after {
-  content: '';
-  position: absolute;
-  inset: 0;
+/* Gray border — applied to wrapper only when showing the interactive board,
+   matching the 1px gray border on SL's static diagram images. */
+.senseiscan-wrapper.senseiscan-board-active {
   border: 1px solid #aaaaaa;
-  pointer-events: none;
-  z-index: 10;
+  box-sizing: border-box;
 }
 
 /* WGo creates a div.boardElement (display:inline-block) inside the container.
@@ -87,6 +83,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 3px 4px;
   line-height: normal;
@@ -94,13 +91,16 @@
   border: 1px solid #c49050;
   cursor: default;
   box-sizing: border-box;
-  overflow: hidden;
 }
 
 .senseiscan-ctrl-btn {
-  padding: 1px 6px;
+  display: inline-block;
+  min-width: 28px;
+  padding: 1px 4px;
   font-size: 12px;
   line-height: 1.4;
+  text-align: center;
+  box-sizing: border-box;
   color: #333;
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid #aaa;
@@ -116,16 +116,10 @@
 /* ── Toggle button — center of the controls bar ─────────────────────────────── */
 
 .senseiscan-toggle {
-  padding: 1px 8px;
   font-weight: bold;
   border-color: #888;
 }
 
-.senseiscan-move-info {
-  font-size: 11px;
-  text-align: center;
-  color: #333;
-}
 
 /* ── Stone and markup rendering ─────────────────────────────────────────────── */
 
@@ -148,9 +142,33 @@
    The last-move indicator uses fillColor:'rgba(0,0,0,0.001)' (non-zero)
    so it does NOT match this rule and keeps its own dark stroke.
    Label <text> elements use fill (not stroke) so they are unaffected. */
-.senseiscan-player-board svg circle[fill="rgba(0,0,0,0)"],
-.senseiscan-player-board svg rect[fill="rgba(0,0,0,0)"],
+
+/* CR circle — thicker red stroke ring */
+.senseiscan-player-board svg circle[fill="rgba(0,0,0,0)"] {
+  stroke: #FF3333 !important;
+  stroke-width: 0.08 !important;
+}
+
+/* SQ rect — solid red filled square */
+.senseiscan-player-board svg rect[fill="rgba(0,0,0,0)"] {
+  fill: #FF3333 !important;
+  stroke: none !important;
+}
+
+/* TR triangle, MA X-mark — red stroke */
 .senseiscan-player-board svg polygon[fill="rgba(0,0,0,0)"],
 .senseiscan-player-board svg path[fill="rgba(0,0,0,0)"] {
-  stroke: #CC0000 !important;
+  stroke: #FF3333 !important;
+}
+
+/* ── Label markers — bold text so single letters read clearly ───────────────── */
+
+.senseiscan-player-board svg text {
+  font-weight: bold !important;
+}
+
+/* ── Download link styled as a button ───────────────────────────────────────── */
+
+.senseiscan-download {
+  text-decoration: none;
 }
