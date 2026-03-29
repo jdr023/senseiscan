@@ -14,7 +14,7 @@ A Chrome extension that replaces static Go diagram images on [Sensei's Library](
 
 ## Installation
 
-1. Clone or download this repository
+1. Download the latest [Release](https://github.com/jdr023/senseiscan/releases) or clone this repository and zip the `senseiscan` directory
 2. Open Chrome and go to `chrome://extensions`
 3. Enable **Developer mode** (top right toggle)
 4. Click **Load unpacked** and select the `senseiscan` folder
